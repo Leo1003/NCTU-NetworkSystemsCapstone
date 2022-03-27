@@ -1,0 +1,30 @@
+*nat
+:PREROUTING ACCEPT [0:0]
+-A PREROUTING -i R1R2veth -p tcp --dport 8080 -j DNAT --to-destination 192.168.1.1:8080
+-A PREROUTING -i R1R2veth -p tcp --dport 9090 -j DNAT --to-destination 192.168.2.1:9090
+
+:POSTROUTING ACCEPT [0:0]
+-A POSTROUTING -s 192.168.1.0/24 -o R1R2veth -j SNAT --to-source 140.113.2.30
+-A POSTROUTING -s 192.168.2.0/24 -o R1R2veth -j SNAT --to-source 140.113.2.40
+
+:INPUT ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+
+COMMIT
+
+*filter
+:INPUT DROP [0:0]
+-A INPUT -i lo -j ACCEPT
+-A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A INPUT -p icmp -j ACCEPT
+
+-A INPUT -i R1R2veth -p tcp --dport 179 -j ACCEPT
+
+:FORWARD ACCEPT [0:0]
+-A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A FORWARD -p icmp -j ACCEPT
+
+:OUTPUT ACCEPT [0:0]
+
+COMMIT
+

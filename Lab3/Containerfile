@@ -1,0 +1,9 @@
+FROM ubuntu:20.04
+
+RUN apt-get update && \
+    apt-get install -y netcat telnet tcpdump iproute2 iputils-ping curl python3
+
+RUN setcap -r /usr/bin/ping
+
+CMD ["/usr/bin/sleep", "inf"]
+

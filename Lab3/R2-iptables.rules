@@ -1,0 +1,24 @@
+*nat
+:PREROUTING ACCEPT [0:0]
+:POSTROUTING ACCEPT [0:0]
+:INPUT ACCEPT [0:0]
+:OUTPUT ACCEPT [0:0]
+
+COMMIT
+
+*filter
+:INPUT DROP [0:0]
+-A INPUT -i lo -j ACCEPT
+-A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A INPUT -p icmp -j ACCEPT
+
+-A INPUT -i R1R2veth -p tcp --dport 179 -j ACCEPT
+
+:FORWARD ACCEPT [0:0]
+-A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+-A FORWARD -p icmp -j ACCEPT
+
+:OUTPUT ACCEPT [0:0]
+
+COMMIT
+
