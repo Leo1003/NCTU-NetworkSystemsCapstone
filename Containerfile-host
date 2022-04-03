@@ -1,0 +1,11 @@
+FROM ubuntu:20.04
+
+RUN apt-get update && \
+    apt-get install -y netcat telnet tcpdump iproute2 iputils-ping iputils-tracepath traceroute curl python3
+
+RUN setcap -r /usr/bin/ping
+
+COPY init /usr/bin/init
+
+ENTRYPOINT ["/usr/bin/init"]
+

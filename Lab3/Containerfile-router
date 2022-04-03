@@ -1,4 +1,4 @@
-FROM nsc-lab3
+FROM nsc-lab-host
 
 RUN sed -i -E 's|#*net\.ipv4\.ip_forward.*$|net.ipv4.ip_forward=1|' /etc/sysctl.conf
 

@@ -1,0 +1,22 @@
+#!/usr/bin/bash
+
+if [ -x /usr/bin/nsc-network-init ]; then
+    echo >&2 "Executing network initial script..."
+    /usr/bin/nsc-network-init
+
+    local retval=$?
+    echo >&2 "Return code: $retval"
+    if [ $retval -ne 0 ]; then
+        exit $retval
+    fi
+else
+    echo >&2 "Running network initial script skipped!"
+fi
+
+if [ $# -gt 0 ]; then
+    exec -- "$@"
+else
+    echo >&2 "No command found... Keep sleeping..."
+    trap true TERM INT; sleep infinity & wait $!
+fi
+
