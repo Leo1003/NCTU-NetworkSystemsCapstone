@@ -17,6 +17,8 @@ if [ $# -gt 0 ]; then
     exec -- "$@"
 else
     echo >&2 "No command found... Keep sleeping..."
-    trap true TERM INT; sleep infinity & wait $!
+    trap true TERM INT
+    sleep infinity &
+    wait $!
 fi
 
