@@ -1,0 +1,7 @@
+**/dep/
+**/obj/
+dygre/dygre
+
+.dockerignore
+.gitignore
+
