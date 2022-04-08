@@ -156,6 +156,11 @@ ip netns exec "${NETNS_PREFIX}BRG2" ip link add GRETAP type gretap remote 140.11
 
 wait
 
+ip netns exec "${NETNS_PREFIX}BRG1" ip link set GRETAP up &
+ip netns exec "${NETNS_PREFIX}BRG2" ip link set GRETAP up &
+
+wait
+
 echo >&2 "[9/9] Setup bridges and GRE tunnels..."
 ip netns exec "${NETNS_PREFIX}BRG1" ip link add br0 type bridge &
 ip netns exec "${NETNS_PREFIX}BRG2" ip link add br0 type bridge &
