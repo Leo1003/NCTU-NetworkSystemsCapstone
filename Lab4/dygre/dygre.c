@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include <arpa/inet.h>
+#include <ctype.h>
 #include <errno.h>
 #include <linux/if.h>
 #include <net/ethernet.h>
@@ -13,6 +14,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "ip-gre.h"
+#include "packet.h"
+
 #include <netlink/cache.h>
 #include <netlink/errno.h>
 #include <netlink/netlink.h>
@@ -23,7 +27,6 @@
 #include <netlink/socket.h>
 #include <pcap/pcap.h>
 
-#define FMT_MACADDR "%02x:%02x:%02x:%02x:%02x:%02x"
 #define TUNNEL_PREFIX "dygre-"
 
 #define errf(fmt, ...) fprintf(stderr, fmt, ##__VA_ARGS__)
@@ -254,75 +257,6 @@ err_bpf:
 err:
     free(exprbuf);
     return -1;
-}
-
-static void print_macaddr(FILE *fp, const uint8_t a[ETH_ALEN])
-{
-    fprintf(fp, FMT_MACADDR, a[0], a[1], a[2], a[3], a[4], a[5]);
-}
-
-int parse_packet(const u_char *pkt, size_t pktlen, struct in_addr *saddr, struct in_addr *daddr)
-{
-    const u_char *buf = pkt;
-    size_t buflen = pktlen;
-    if (buflen < sizeof(struct ether_header)) {
-        return -1;
-    }
-    const struct ether_header *ethhdr = (const struct ether_header *)buf;
-    buf += sizeof(struct ether_header);
-    buflen -= sizeof(struct ether_header);
-
-    printf("Source MAC: ");
-    print_macaddr(stdout, ethhdr->ether_shost);
-    printf("\n");
-    printf("Destination MAC: ");
-    print_macaddr(stdout, ethhdr->ether_dhost);
-    printf("\n");
-
-    if (ntohs(ethhdr->ether_type) != ETHERTYPE_IP) {
-        return -1;
-    }
-    printf("Ethernet Type: IPv4\n");
-    if (buflen < sizeof(struct iphdr)) {
-        return -1;
-    }
-    const struct iphdr *iphdr = (const struct iphdr *)buf;
-    buf += iphdr->ihl * 4;
-    buflen -= iphdr->ihl * 4;
-
-    char ipaddr_buf[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET, &iphdr->saddr, ipaddr_buf, INET_ADDRSTRLEN);
-    printf("Source IP: %s\n", ipaddr_buf);
-    inet_ntop(AF_INET, &iphdr->daddr, ipaddr_buf, INET_ADDRSTRLEN);
-    printf("Destination IP: %s\n", ipaddr_buf);
-
-    printf("Protocol: ");
-    switch (iphdr->protocol) {
-    case IPPROTO_GRE:
-        printf("GRE");
-        break;
-    case IPPROTO_TCP:
-        printf("TCP");
-        break;
-    case IPPROTO_UDP:
-        printf("UDP");
-        break;
-    case IPPROTO_ICMP:
-        printf("ICMP");
-        break;
-    default:
-        printf("Unknown");
-        break;
-    }
-    printf("\n");
-
-    if (iphdr->protocol != IPPROTO_GRE) {
-        return -1;
-    }
-
-    memcpy(saddr, &iphdr->saddr, sizeof(struct in_addr));
-    memcpy(daddr, &iphdr->daddr, sizeof(struct in_addr));
-    return 0;
 }
 
 int create_tunnel(struct nl_sock *nl, int master, struct in_addr *remote, struct in_addr *local)
