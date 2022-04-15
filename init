@@ -1,6 +1,12 @@
 #!/usr/bin/bash
 
 if [ -x /usr/bin/nsc-network-init ]; then
+    echo >&2 "Waiting for network setup..."
+    sleep infinity &
+    PID=$!
+    trap "kill $PID" USR1
+    wait $PID
+
     echo >&2 "Executing network initial script..."
     /usr/bin/nsc-network-init
 
