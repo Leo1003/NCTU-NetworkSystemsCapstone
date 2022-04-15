@@ -10,7 +10,7 @@ if [ -x /usr/bin/nsc-network-init ]; then
     echo >&2 "Executing network initial script..."
     /usr/bin/nsc-network-init
 
-    local retval=$?
+    retval=$?
     echo >&2 "Return code: $retval"
     if [ $retval -ne 0 ]; then
         exit $retval
