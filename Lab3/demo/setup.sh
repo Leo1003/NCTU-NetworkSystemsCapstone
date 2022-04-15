@@ -36,30 +36,36 @@ create_router_container() {
     if [ $# -lt 1 ]; then
         return 1
     fi
+    local name="$1"
+    shift
 
     podman run --network none \
         --cap-add NET_ADMIN \
         --cap-add NET_RAW \
         --cap-add SYS_ADMIN \
         -d \
-        --name "$1" \
-        --mount type=bind,src="$1-bgpd.conf",dst=/etc/quagga/bgpd.conf,ro=true \
-        --mount type=bind,src="$1-zebra.conf",dst=/etc/quagga/zebra.conf,ro=true \
-        --mount type=bind,src="$1-network-init.sh",dst=/usr/bin/nsc-network-init,ro=true \
-        localhost/nsc-lab3-router
+        --name "$name" \
+        --mount type=bind,src="$name-bgpd.conf",dst=/etc/quagga/bgpd.conf,ro=true \
+        --mount type=bind,src="$name-zebra.conf",dst=/etc/quagga/zebra.conf,ro=true \
+        --mount type=bind,src="$name-network-init.sh",dst=/usr/bin/nsc-network-init,ro=true \
+        localhost/nsc-lab3-router \
+        "$@"
 }
 
 create_host_container() {
     if [ $# -lt 1 ]; then
         return 1
     fi
+    local name="$1"
+    shift
 
     podman run --network none \
         --cap-add NET_ADMIN \
         -d \
-        --name "$1" \
-        --mount type=bind,src="$1-network-init.sh",dst=/usr/bin/nsc-network-init,ro=true \
-        localhost/nsc-lab-host
+        --name "$name" \
+        --mount type=bind,src="$name-network-init.sh",dst=/usr/bin/nsc-network-init,ro=true \
+        localhost/nsc-lab-host \
+        "$@"
 }
 
 echo >&2 "[1/5] Starting router containers..."
