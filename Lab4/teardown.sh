@@ -5,7 +5,7 @@ remove_pod_and_ns() {
     if [ $# -lt 1 ]; then
         return 1
     fi
-    podman rm -f "$1" &&
+    podman rm -f "$1"
     ip netns delete "${NETNS_PREFIX}$1"
 }
 
