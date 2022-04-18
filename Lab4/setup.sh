@@ -13,9 +13,16 @@ veth_bind_and_up() {
     if [ $# -lt 2 ]; then
         return 1
     fi
+    local ifname="$1"
+    local netns="${NETNS_PREFIX}$2"
+    local newifname="$3"
 
-    ip link set "$1" netns "${NETNS_PREFIX}$2" &&
-    ip netns exec "${NETNS_PREFIX}$2" ip link set "$1" up
+    ip link set "$ifname" netns "$netns"
+    if [ -n "$newifname" ]; then
+        ip -netns "$netns" link set "$ifname" name "$newifname"
+        local ifname="$newifname"
+    fi
+    ip -netns "$netns" link set "$ifname" up
 }
 
 veth_connect() {
@@ -23,12 +30,19 @@ veth_connect() {
         return 1
     fi
 
-    local link1="$1$2veth"
-    local link2="$2$1veth"
+    local h1="${1#*@}"
+    local h1ifname="${1%"$h1"}"
+    local h1ifname="${h1ifname%@*}"
+    local h2="${2#*@}"
+    local h2ifname="${2%"$h2"}"
+    local h2ifname="${h2ifname%@*}"
 
-    ip link add "$link1" type veth peer name "$link2"
-    veth_bind_and_up "$link1" "$1"
-    veth_bind_and_up "$link2" "$2"
+    local veth1="${h1}${h2}veth"
+    local veth2="${h2}${h1}veth"
+
+    ip link add "$veth1" type veth peer name "$veth2"
+    veth_bind_and_up "$veth1" "$h1" "$h1ifname"
+    veth_bind_and_up "$veth2" "$h2" "$h2ifname"
 }
 
 create_router_container() {
@@ -113,12 +127,12 @@ wait
 
 echo >&2 "[4/5] Create veth links..."
 veth_connect "R1" "R2" &
-veth_connect "R1" "BRG1" &
-veth_connect "R1" "BRG2" &
-veth_connect "R2" "BRGr" &
-veth_connect "BRG1" "h1" &
-veth_connect "BRG2" "h2" &
-veth_connect "BRGr" "GWr" &
+veth_connect "R1" "eth1@BRG1" &
+veth_connect "R1" "eth1@BRG2" &
+veth_connect "R2" "eth1@BRGr" &
+veth_connect "eth0@BRG1" "eth0@h1" &
+veth_connect "eth0@BRG2" "eth0@h2" &
+veth_connect "eth0@BRGr" "eth0@GWr" &
 
 wait
 
