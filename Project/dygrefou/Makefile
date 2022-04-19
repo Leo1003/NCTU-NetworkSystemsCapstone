@@ -14,9 +14,9 @@ AINCDIR     =
 INCDIR      = 
 LIBS        =
 FLAGS       =
-CFLAGS      = -std=c11 -Wall $(shell pkg-config --cflags libnl-route-3.0) $(shell pkg-config --cflags libpcap)
+CFLAGS      = -std=c11 -Wall $(shell pkg-config --cflags libnl-route-3.0 libpcap)
 CXXFLAGS    = -std=c++17 -Wall
-LDFLAGS     = $(shell pkg-config --libs libnl-route-3.0) $(shell pkg-config --libs libpcap)
+LDFLAGS     = $(shell pkg-config --libs libnl-route-3.0 libpcap)
 DEFFLAGS    =
 DBGFLAGS    = -g -DDEBUG
 LDSCRIPT    =
