@@ -20,7 +20,11 @@ FROM nsc-lab-host
 RUN sed -i -E 's|#*net\.ipv4\.ip_forward.*$|net.ipv4.ip_forward=1|' /etc/sysctl.conf
 
 RUN apt-get update && \
-    apt-get install -y libnl-3-200 libnl-route-3-200 libpcap-dev
+    apt-get install -y libnl-3-200 libnl-route-3-200 libpcap-dev openvswitch-switch
+
+RUN mkdir /var/run/openvswitch
+
+RUN ovsdb-tool create
 
 COPY --from=builder /home/builder/dygre/dygrefou /usr/bin/dygrefou
 
