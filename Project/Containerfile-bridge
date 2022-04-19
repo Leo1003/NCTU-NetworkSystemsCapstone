@@ -26,5 +26,5 @@ RUN mkdir /var/run/openvswitch
 
 RUN ovsdb-tool create
 
-COPY --from=builder /home/builder/dygre/dygrefou /usr/bin/dygrefou
+COPY --from=builder /home/builder/dygrefou/dygrefou /usr/bin/dygrefou
 
