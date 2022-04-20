@@ -2,8 +2,9 @@
 #define PACKET_H
 
 #include <arpa/inet.h>
+#include "gre_encap_tunnel.h"
 
-int parse_packet(const unsigned char *pkt, size_t pktlen, struct in_addr *saddr, struct in_addr *daddr);
+int parse_packet(const uint8_t *pkt, size_t pktlen, struct gretap_opt *opt);
 
 #endif
 

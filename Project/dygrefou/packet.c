@@ -7,7 +7,7 @@
 #include <errno.h>
 #include <linux/if.h>
 #include <net/ethernet.h>
-#include <netinet/ip.h>
+#include <netinet/udp.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -79,6 +79,18 @@ const struct iphdr *read_iphdr(const uint8_t **buf, size_t *buflen)
     return iphdr;
 }
 
+const struct udphdr *read_udphdr(const uint8_t **buf, size_t *buflen)
+{
+    if (*buflen < sizeof(struct udphdr)) {
+        return NULL;
+    }
+    const struct udphdr *udphdr = (const struct udphdr *)*buf;
+    *buf += sizeof(struct udphdr);
+    *buflen -= sizeof(struct udphdr);
+
+    return udphdr;
+}
+
 const struct grehdr *read_grehdr(const uint8_t **buf, size_t *buflen)
 {
     if (*buflen < sizeof(struct grehdr)) {
@@ -105,7 +117,7 @@ const struct grehdr *read_grehdr(const uint8_t **buf, size_t *buflen)
     return grehdr;
 }
 
-int parse_packet(const uint8_t *pkt, size_t pktlen, struct in_addr *saddr, struct in_addr *daddr)
+int parse_packet(const uint8_t *pkt, size_t pktlen, struct gretap_opt *opt)
 {
     char ipaddr_buf[INET_ADDRSTRLEN];
 
@@ -151,9 +163,29 @@ int parse_packet(const uint8_t *pkt, size_t pktlen, struct in_addr *saddr, struc
     printf("Protocol: 0x%02hhx %s\n", iphdr->protocol, str_ipproto(iphdr->protocol));
 
     /**
+     * Copy remote & local address
+     **/
+    memcpy(&opt->remote, &iphdr->saddr, sizeof(struct in_addr));
+    memcpy(&opt->local, &iphdr->daddr, sizeof(struct in_addr));
+
+    if (iphdr->protocol == IPPROTO_UDP) {
+        const struct udphdr *udphdr = read_udphdr(&buf, &buflen);
+        if (udphdr == NULL) {
+            return -1;
+        }
+
+        printf("Source Port: %hu\n", ntohs(udphdr->source));
+        printf("Destination Port: %hu\n", ntohs(udphdr->dest));
+
+        opt->encap_type = TUNNEL_ENCAP_FOU;
+        opt->encap_dport = ntohs(udphdr->source);
+        opt->encap_sport = ntohs(udphdr->dest);
+    }
+
+    /**
      * GRE header
      **/
-    if (iphdr->protocol != IPPROTO_GRE) {
+    if (!(iphdr->protocol == IPPROTO_GRE || iphdr->protocol == IPPROTO_UDP)) {
         return -1;
     }
     const struct grehdr *grehdr = read_grehdr(&buf, &buflen);
@@ -162,7 +194,17 @@ int parse_packet(const uint8_t *pkt, size_t pktlen, struct in_addr *saddr, struc
     }
     uint16_t greproto = ntohs(grehdr->protocol);
     printf("GRE Protocol Type: 0x%04hx %s\n", greproto, str_ethtype(greproto));
-
+    const uint8_t *opthdr = ((uint8_t *)grehdr) + sizeof(struct grehdr);
+    if (grehdr->c) {
+        opthdr += 4;
+    }
+    if (grehdr->k) {
+        opt->key = ntohl(*(uint32_t *)opthdr);
+        opthdr += 4;
+    }
+    if (grehdr->s) {
+        opthdr += 4;
+    }
 
     /**
      * Inner Ethernet header
@@ -183,12 +225,6 @@ int parse_packet(const uint8_t *pkt, size_t pktlen, struct in_addr *saddr, struc
     printf("\n");
     uint16_t iethtype = ntohs(iethhdr->ether_type);
     printf("Inner Ethernet Type: 0x%04hx %s\n", iethtype, str_ethtype(iethtype));
-
-    /**
-     * Copy remote & local address
-     **/
-    memcpy(saddr, &iphdr->saddr, sizeof(struct in_addr));
-    memcpy(daddr, &iphdr->daddr, sizeof(struct in_addr));
 
     /**
      * Inner IP header

@@ -18,6 +18,7 @@ struct gretap_opt {
     uint16_t encap_dport;
 };
 
+int get_tunnel(struct nl_sock *nl, const char *ifname, struct gretap_opt *opt);
 int create_tunnel(struct nl_sock *nl, const struct gretap_opt *opt);
 int destory_tunnel(struct nl_sock *nl, const char *ifname);
 int destory_tunnel_index(struct nl_sock *nl, int ifindex);

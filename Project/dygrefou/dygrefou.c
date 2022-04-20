@@ -4,7 +4,6 @@
 #include <errno.h>
 #include <linux/if.h>
 #include <net/ethernet.h>
-#include <netinet/ip.h>
 #include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -15,6 +14,7 @@
 #include <unistd.h>
 
 #include "ip-gre.h"
+#include "gre_encap_tunnel.h"
 #include "packet.h"
 
 #include <netlink/cache.h>
@@ -202,7 +202,7 @@ int build_filter(pcap_t *pcap, struct nl_sock *nl)
 
     errf("Building filter expression...\n");
 
-    fprintf(ss, "inbound and ip proto gre");
+    fprintf(ss, "inbound and udp dst port 5555");
 
     struct nl_cache *links = NULL;
     if (rtnl_link_alloc_cache(nl, AF_UNSPEC, &links) < 0){
@@ -224,10 +224,15 @@ int build_filter(pcap_t *pcap, struct nl_sock *nl)
             continue;
         }
 
-        struct in_addr remote = {
-            .s_addr = rtnl_link_ipgre_get_remote(cur)
-        };
-        fprintf(ss, " and not src host %s", inet_ntop(AF_INET, &remote, buf, INET_ADDRSTRLEN));
+        struct gretap_opt info;
+        if (get_tunnel(nl, linkname, &info) < 0) {
+            errf("Failed to acquire tunnel data of %s\n", linkname);
+            continue;
+        }
+
+        fprintf(ss, " and not (src host %s and udp src port %hu)",
+                inet_ntop(AF_INET, &info.remote, buf, INET_ADDRSTRLEN),
+                info.encap_dport);
     }
     nl_cache_free(links);
 
@@ -257,40 +262,6 @@ err_bpf:
 err:
     free(exprbuf);
     return -1;
-}
-
-int create_tunnel(struct nl_sock *nl, int master, struct in_addr *remote, struct in_addr *local)
-{
-    struct rtnl_link *grelink = rtnl_link_ipgretap_alloc();
-    if (grelink == NULL) {
-        errf("Failed to allocate rtnl_link!\n");
-        return -1;
-    }
-
-    char linkname[IFNAMSIZ];
-    snprintf(linkname, IFNAMSIZ - 1, TUNNEL_PREFIX"%08x", remote->s_addr);
-    linkname[IFNAMSIZ - 1] = '\0';
-
-    rtnl_link_set_name(grelink, linkname);
-    rtnl_link_ipgre_set_local(grelink, local->s_addr);
-    rtnl_link_ipgre_set_remote(grelink, remote->s_addr);
-    if (master > 0) {
-        rtnl_link_set_master(grelink, master);
-    }
-    rtnl_link_set_flags(grelink, IFF_UP);
-
-    int ret = rtnl_link_add(nl, grelink, NLM_F_CREATE);
-    rtnl_link_put(grelink);
-
-    if (ret == -NLE_EXIST) {
-        errf("Warning: Link exists\n");
-        return 0;
-    } else if (ret < 0) {
-        errf("Error: Failed to add link: %s\n", nl_geterror(ret));
-        return -1;
-    }
-
-    return 0;
 }
 
 static volatile sig_atomic_t running = 1;
@@ -359,13 +330,25 @@ int main(int argc, char *argv[])
             continue;
         }
 
-        struct in_addr saddr, daddr;
-        if (parse_packet(pkt, pkt_hdr.caplen, &saddr, &daddr) < 0) {
+        struct gretap_opt opt;
+        memset(&opt, 0, sizeof(struct gretap_opt));
+
+        if (parse_packet(pkt, pkt_hdr.caplen, &opt) < 0) {
             errf("Warning: Got invalid GRE packet!\n");
             continue;
         }
 
-        if (create_tunnel(nl, master, &saddr, &daddr) < 0) {
+        if (opt.key) {
+            snprintf(opt.ifname, IFNAMSIZ - 1, TUNNEL_PREFIX"%08x", opt.key);
+            opt.ifname[IFNAMSIZ - 1] = '\0';
+
+            destory_tunnel(nl, opt.ifname);
+        } else {
+            snprintf(opt.ifname, IFNAMSIZ - 1, TUNNEL_PREFIX"%08x", opt.remote.s_addr);
+            opt.ifname[IFNAMSIZ - 1] = '\0';
+        }
+
+        if (create_tunnel(nl, &opt) < 0) {
             errf("Error: Failed to create tunnel!\n");
             continue;
         }

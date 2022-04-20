@@ -1,0 +1,7 @@
+**/dep/
+**/obj/
+dygrefou/dygrefou
+
+.dockerignore
+.gitignore
+

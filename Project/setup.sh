@@ -70,7 +70,7 @@ create_router_container() {
         -d \
         --name "$name" \
         --mount type=bind,src="$name-network-init.sh",dst=/usr/bin/nsc-network-init,ro=true \
-        localhost/nsc-lab4-router \
+        localhost/nsc-proj-router \
         "$@"
 }
 
@@ -88,7 +88,7 @@ create_bridge_container() {
         -d \
         --name "$name" \
         --mount type=bind,src="$name-network-init.sh",dst=/usr/bin/nsc-network-init,ro=true \
-        localhost/nsc-lab4-bridge \
+        localhost/nsc-proj-bridge \
         "$@"
 }
 

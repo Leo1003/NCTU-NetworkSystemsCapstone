@@ -5,9 +5,124 @@
 #include <linux/if_link.h>
 #include <linux/netlink.h>
 #include <linux/rtnetlink.h>
-#include <netlink/attr.h>
 #include <netlink/msg.h>
 #include <netlink/netlink.h>
+#include <netlink/route/link.h>
+
+static int tunnel_parser(struct nl_msg *msg, void *arg)
+{
+    int ret = -1;
+    struct nlmsghdr *hdr = nlmsg_hdr(msg);
+    struct gretap_opt result;
+    memset(&result, 0, sizeof(struct gretap_opt));
+    
+    struct ifinfomsg *ifi = NULL;
+    if (!nlmsg_valid_hdr(hdr, sizeof(struct ifinfomsg))) {
+        return -1;
+    }
+    ifi = nlmsg_data(hdr);
+
+    struct nlattr *nla = NULL, *gretap_data = NULL;
+    struct nlattr *nlas = nlmsg_attrdata(hdr, sizeof(struct ifinfomsg));
+    int len = nlmsg_attrlen(hdr, sizeof(struct ifinfomsg));
+    int rem;
+    nla_for_each_attr(nla, nlas, len, rem) {
+        switch (nla_type(nla)) {
+        case IFLA_MASTER:
+            result.master = nla_get_u32(nla);
+            break;
+        case IFLA_IFNAME:
+            nla_strlcpy(result.ifname, nla, IFNAMSIZ);
+            break;
+        case IFLA_LINKINFO: {
+            struct nlattr *li_nla = NULL;
+            int li_rem;
+            nla_for_each_nested(li_nla, nla, li_rem) {
+                switch (nla_type(li_nla)) {
+                case IFLA_INFO_KIND:
+                    if (nla_strcmp(li_nla, "gretap") != 0) {
+                        goto err;
+                    }
+                    break;
+                case IFLA_INFO_DATA:
+                    gretap_data = li_nla;
+                    break;
+                default:
+                    break;
+                }
+            }
+            ;
+        }
+            break;
+        default:
+            break;
+        }
+    }
+
+    if (gretap_data == NULL) {
+        goto err;
+    }
+    nla_for_each_nested(nla, gretap_data, rem) {
+        switch (nla_type(nla)) {
+        case IFLA_GRE_LOCAL:
+            result.local.s_addr = nla_get_u32(nla);
+            break;
+        case IFLA_GRE_REMOTE:
+            result.remote.s_addr = nla_get_u32(nla);
+            break;
+        case IFLA_GRE_IKEY:
+        case IFLA_GRE_OKEY:
+            result.key = nla_get_u32(nla);
+            break;
+        case IFLA_GRE_ENCAP_TYPE:
+            result.encap_type = nla_get_u16(nla);
+            break;
+        case IFLA_GRE_ENCAP_SPORT:
+            result.encap_sport = nla_get_u16(nla);
+            break;
+        case IFLA_GRE_ENCAP_DPORT:
+            result.encap_dport = nla_get_u16(nla);
+            break;
+        default:
+            break;
+        }
+    }
+
+    memcpy((struct gretap_opt *)arg, &result, sizeof(struct gretap_opt));
+err:
+    return ret;
+}
+
+int get_tunnel(struct nl_sock *nl, const char *ifname, struct gretap_opt *opt)
+{
+    struct nl_msg *msg = NULL;
+
+    int ret = -1;
+    if (rtnl_link_build_get_request(0, ifname, &msg) < 0) {
+        goto err;
+    }
+    if (nl_send_auto(nl, msg) < 0) {
+        goto err_msg;
+    }
+
+    struct nl_cb *cb = nl_cb_alloc(NL_CB_CUSTOM);
+    if (cb == NULL) {
+        goto err_msg;
+    }
+    nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, tunnel_parser, (void *)opt);
+
+    if (nl_recvmsgs(nl, cb) < 0) {
+        goto err_cb;
+    }
+    nl_wait_for_ack(nl);
+
+err_cb:
+    nl_cb_put(cb);
+err_msg:
+    nlmsg_free(msg);
+err:
+    return ret;
+}
 
 int create_tunnel(struct nl_sock *nl, const struct gretap_opt *opt)
 {
@@ -36,7 +151,7 @@ int create_tunnel(struct nl_sock *nl, const struct gretap_opt *opt)
         goto err_msg;
     }
     NLA_PUT_STRING(msg, IFLA_INFO_KIND, "gretap");
-    
+
     struct nlattr *info_data = nla_nest_start(msg, IFLA_INFO_DATA);
     if (info_data == NULL) {
         goto err_msg;
@@ -85,12 +200,12 @@ int destory_tunnel(struct nl_sock *nl, const char *ifname)
 
     struct rtnl_link* link = rtnl_link_get_by_name(links, ifname);
     if (link == NULL) {
-        goto err:
+        goto err;
     }
 
     ret = rtnl_link_delete(nl, link);
 
-err_msg:
+err:
     nl_cache_free(links);
     return ret;
 }
@@ -105,12 +220,12 @@ int destory_tunnel_index(struct nl_sock *nl, int ifindex)
 
     struct rtnl_link* link = rtnl_link_get(links, ifindex);
     if (link == NULL) {
-        goto err:
+        goto err;
     }
 
     ret = rtnl_link_delete(nl, link);
 
-err_msg:
+err:
     nl_cache_free(links);
     return ret;
 }
