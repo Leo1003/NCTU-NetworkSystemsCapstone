@@ -225,10 +225,12 @@ int build_filter(pcap_t *pcap, struct nl_sock *nl)
         }
 
         struct gretap_opt info;
-        if (get_tunnel(nl, linkname, &info) < 0) {
-            errf("Failed to acquire tunnel data of %s\n", linkname);
+        int err = get_tunnel(nl, linkname, &info);
+        if (err < 0) {
+            errf("Failed to acquire tunnel data of %s: %s\n", linkname, nl_geterror(err));
             continue;
         }
+        errf("tunnel info: %s %08x [%hu %hu -> %hu]\n", info.ifname, info.key, info.encap_type, info.encap_sport, info.encap_dport);
 
         fprintf(ss, " and not (src host %s and udp src port %hu)",
                 inet_ntop(AF_INET, &info.remote, buf, INET_ADDRSTRLEN),
@@ -323,6 +325,7 @@ int main(int argc, char *argv[])
 
     errf("Fetching packet...\n");
     while (running) {
+        int err = 0;
         struct pcap_pkthdr pkt_hdr;
 
         const u_char *pkt = pcap_next(pcap, &pkt_hdr);
@@ -334,22 +337,27 @@ int main(int argc, char *argv[])
         memset(&opt, 0, sizeof(struct gretap_opt));
 
         if (parse_packet(pkt, pkt_hdr.caplen, &opt) < 0) {
+            fflush(stdout);
             errf("Warning: Got invalid GRE packet!\n");
             continue;
         }
+        fflush(stdout);
 
         if (opt.key) {
             snprintf(opt.ifname, IFNAMSIZ - 1, TUNNEL_PREFIX"%08x", opt.key);
             opt.ifname[IFNAMSIZ - 1] = '\0';
 
-            destory_tunnel(nl, opt.ifname);
+            if ((err = destory_tunnel(nl, opt.ifname)) < 0) {
+                errf("Warning: Failed to delete tunnel %s: %s\n", opt.ifname, nl_geterror(err));
+            }
         } else {
             snprintf(opt.ifname, IFNAMSIZ - 1, TUNNEL_PREFIX"%08x", opt.remote.s_addr);
             opt.ifname[IFNAMSIZ - 1] = '\0';
         }
+        opt.master = master;
 
-        if (create_tunnel(nl, &opt) < 0) {
-            errf("Error: Failed to create tunnel!\n");
+        if ((err = create_tunnel(nl, &opt)) < 0) {
+            errf("Error: Failed to create tunnel: %s\n", nl_geterror(err));
             continue;
         }
 
