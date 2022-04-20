@@ -17,3 +17,5 @@ iptables -t nat -A POSTROUTING -s 172.27.0.0/24 -o R1R2veth -j MASQUERADE
 iptables -A FORWARD -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 iptables -A FORWARD -s 172.27.0.0/24 -j ACCEPT
 
+echo "" > /run/dhcpd.leases
+

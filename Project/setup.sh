@@ -74,6 +74,25 @@ create_router_container() {
         "$@"
 }
 
+create_edge_router_container() {
+    if [ $# -lt 1 ]; then
+        return 1
+    fi
+    local name="$1"
+    shift
+
+    podman run --network none \
+        --cap-add NET_ADMIN \
+        --cap-add NET_RAW \
+        --cap-add SYS_ADMIN \
+        -d \
+        --name "$name" \
+        --mount type=bind,src="$name-network-init.sh",dst=/usr/bin/nsc-network-init,ro=true \
+        --mount type=bind,src="$name-dhcpd.conf",dst=/etc/dhcpd.conf,ro=true \
+        localhost/nsc-proj-router \
+        "$@"
+}
+
 create_bridge_container() {
     if [ $# -lt 1 ]; then
         return 1
@@ -101,6 +120,7 @@ create_host_container() {
 
     podman run --network none \
         --cap-add NET_ADMIN \
+        --cap-add NET_RAW \
         -d \
         --name "$name" \
         --mount type=bind,src="$name-network-init.sh",dst=/usr/bin/nsc-network-init,ro=true \
@@ -109,11 +129,11 @@ create_host_container() {
 }
 
 echo >&2 "[1/6] Starting router containers..."
-create_router_container R1 &
+create_edge_router_container R1 dhcpd -4 -cf /etc/dhcpd.conf -pf /run/dhcpd.pid -lf /run/dhcpd.leases -f -d br0 &
 create_router_container R2 &
 create_bridge_container BRG1 &
 create_bridge_container BRG2 &
-create_bridge_container BRGr dygreudp eth1 br0 &
+create_bridge_container BRGr valgrind --leak-check=full dygrefou eth1 br0 &
 
 wait
 
@@ -157,4 +177,11 @@ podman kill -s USR1 h2 &
 wait
 
 echo >&2 "[6/6] Setup host network interfaces..."
+
+ip address add 20.0.1.254/24 dev GWveth
+touch /run/nsc-proj-dhcpd.leases
+dhcpd -4 -cf Host-dhcpd.conf -pf /run/nsc-proj-dhcpd.pid -lf /run/nsc-proj-dhcpd.leases GWveth
+
+iptables -t nat -A POSTROUTING -s 20.0.1.0/24 -o ens192 -j MASQUERADE
+iptables -A FORWARD -s 20.0.1.0/24 -j ACCEPT
 
