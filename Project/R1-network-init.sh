@@ -2,8 +2,9 @@
 set -e
 
 ip link add br0 type bridge
-ip link set R1BRG1veth master br0
-ip link set R1BRG2veth master br0
+ip link set BRG1eth0 master br0
+ip link set BRG1eth1 master br0
+ip link set BRG2eth0 master br0
 ip link set br0 up
 
 ip address add 172.27.0.1/24 dev br0

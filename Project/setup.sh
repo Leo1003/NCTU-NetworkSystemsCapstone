@@ -156,8 +156,9 @@ wait
 
 echo >&2 "[4/6] Create veth links..."
 veth_connect "R1" "R2" &
-veth_connect "R1" "eth1@BRG1" &
-veth_connect "R1" "eth1@BRG2" &
+(veth_connect "BRG1eth0@R1" "eth1@BRG1" &&
+ veth_connect "BRG1eth1@R1" "eth2@BRG1") &
+veth_connect "BRG2eth0@R1" "eth1@BRG2" &
 veth_connect "R2" "eth1@BRGr" &
 veth_connect "eth0@BRG1" "eth0@h1" &
 veth_connect "eth0@BRG2" "eth0@h2" &
